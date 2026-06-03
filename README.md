@@ -1,5 +1,7 @@
 # Dobby — Single-Machine System Monitoring Dashboard
 
+[![CI](https://github.com/DavidNine/Dobby/actions/workflows/ci.yml/badge.svg)](https://github.com/DavidNine/Dobby/actions/workflows/ci.yml)
+
 A small personal service that monitors **this machine's** CPU, RAM, and network
 usage and shows real-time values plus the last 7 days of trends in the browser
 (desktop / phone / tablet on the same LAN).
