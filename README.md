@@ -15,6 +15,29 @@ Scope is fixed: no disk/temperature/process metrics, no auth, no alerting, no
 multi-host. (The detailed requirements and architecture docs are kept local and
 are not part of this repository.)
 
+## Screenshot
+
+![Dobby dashboard — live CPU/RAM/Network cards above labelled history charts](assets/monitoring.png)
+
+*Live value cards (CPU / RAM / Network) over per-metric history charts with a
+`1h / 6h / 24h / 7d` range switch. Each chart is axis-labelled — `Time` on the
+x-axis, `Usage (%)` or `Rate (Bytes/sec)` on the y-axis.*
+
+## Features
+
+- **Three core metrics** — overall CPU %, RAM (percent + used/total), and
+  network up/down rate, sampled every 10s.
+- **Live cards + history charts** — big current-value cards plus Chart.js line
+  charts, with selectable ranges (`1h` / `6h` / `24h` / `7d`).
+- **7-day retention** — old samples are pruned hourly so the SQLite file stays
+  small.
+- **Server-side downsampling** — history is averaged into ~360 points per range
+  (`1h → 10s`, `6h → 60s`, `24h → 240s`, `7d → 1800s`) for fast, light charts.
+- **LAN-friendly & responsive** — binds `0.0.0.0` with CORS enabled; the UI is
+  responsive for phones/tablets on the same network.
+- **Resilient** — a single failed sample or write is logged and skipped; the
+  service keeps running.
+
 ---
 
 ## Cross-Module Conventions (HLD §6 — authoritative)
