@@ -1,0 +1,23 @@
+[package]
+name = "dobby-backend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+rusqlite = { version = "0.40.0", features = ["bundled"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sysinfo = "0.39.3"
+thiserror = "2.0.18"
+tokio = { version = "1.52.3", features = ["full"] }
+tower-http = { version = "0.6.11", features = ["cors"] }
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+# `test-util` enables tokio's paused virtual clock (`start_paused`,
+# `tokio::time::advance`) used by the B5 Sampler tests. Not part of "full".
+tokio = { version = "1.52.3", features = ["full", "test-util"] }
