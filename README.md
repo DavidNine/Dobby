@@ -38,6 +38,24 @@ x-axis, `Usage (%)` or `Rate (Bytes/sec)` on the y-axis.*
 - **Resilient** — a single failed sample or write is logged and skipped; the
   service keeps running.
 
+## Quick start
+
+Prerequisites: Rust (rustup/cargo) + a C toolchain (gcc), and Node 20+ / npm 9+.
+
+```bash
+git clone git@github.com:DavidNine/Dobby.git
+cd Dobby
+
+# point the frontend at the backend (edit VITE_API_BASE for LAN access)
+cp frontend/.env.example frontend/.env
+
+# build + run both services; Ctrl-C stops both
+./start.sh            # add --host to expose the frontend on your LAN
+```
+
+Then open <http://localhost:5173>. See [Running the services](#running-the-services)
+for per-service commands and configuration.
+
 ---
 
 ## Cross-Module Conventions (HLD §6 — authoritative)
