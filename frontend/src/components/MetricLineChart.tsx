@@ -11,6 +11,7 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  Title,
   Tooltip,
   Legend,
 } from 'chart.js'
@@ -18,18 +19,31 @@ import type { HistoryPoint, Range } from '../api/types'
 import { formatTimeAxis } from '../utils/format'
 
 // Register the Chart.js building blocks a Line chart needs, once at module load.
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
+// `Title` is required for the chart title AND the per-axis titles to render.
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 export type MetricField = 'cpu_percent' | 'mem_percent' | 'net_rx_bps' | 'net_tx_bps'
+
+// Default y-axis unit label per metric field. Percentages for CPU/RAM, and the
+// API's raw network unit (bytes/sec) for rx/tx. Callers may override via the
+// `yLabel` prop (e.g. to localize or rephrase).
+const Y_AXIS_LABEL: Record<MetricField, string> = {
+  cpu_percent: 'Usage (%)',
+  mem_percent: 'Usage (%)',
+  net_rx_bps: 'Rate (Bytes/sec)',
+  net_tx_bps: 'Rate (Bytes/sec)',
+}
 
 export interface MetricLineChartProps {
   title: string
   points: HistoryPoint[]
   field: MetricField
   range: Range
+  /** Optional y-axis label override; defaults to the unit for `field`. */
+  yLabel?: string
 }
 
-export default function MetricLineChart({ title, points, field, range }: MetricLineChartProps) {
+export default function MetricLineChart({ title, points, field, range, yLabel }: MetricLineChartProps) {
   const labels = points.map((p) => formatTimeAxis(p.timestamp, range))
   const values = points.map((p) => p[field])
 
@@ -55,7 +69,13 @@ export default function MetricLineChart({ title, points, field, range }: MetricL
       title: { display: true, text: title },
     },
     scales: {
-      y: { beginAtZero: true },
+      x: {
+        title: { display: true, text: 'Time' },
+      },
+      y: {
+        beginAtZero: true,
+        title: { display: true, text: yLabel ?? Y_AXIS_LABEL[field] },
+      },
     },
   }
 
