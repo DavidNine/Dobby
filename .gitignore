@@ -18,3 +18,7 @@
 # OS / editor cruft
 .DS_Store
 *.log
+
+# Internal planning/design docs — kept local, not published
+/doc/
+/proposal.md

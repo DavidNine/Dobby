@@ -11,9 +11,9 @@ usage and shows real-time values plus the last 7 days of trends in the browser
 - **Frontend** (`frontend/`) — Vite + React + TypeScript + TailwindCSS +
   Chart.js SPA that polls the API every 10s and renders cards + charts.
 
-See `proposal.md` (requirements) and `doc/high-level-design.md` (architecture)
-for full details. Scope is fixed: no disk/temperature/process metrics, no auth,
-no alerting, no multi-host.
+Scope is fixed: no disk/temperature/process metrics, no auth, no alerting, no
+multi-host. (The detailed requirements and architecture docs are kept local and
+are not part of this repository.)
 
 ---
 
@@ -102,10 +102,6 @@ Frontend configuration via Vite env vars (`.env`, copy from `.env.example`):
 
 ```
 .
-├── proposal.md
-├── doc/
-│   ├── high-level-design.md
-│   └── tasks/
 ├── backend/                  ← Rust project (independent service)
 │   ├── Cargo.toml
 │   └── src/
