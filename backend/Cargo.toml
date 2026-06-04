@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 axum = { version = "0.8.9", features = ["ws"] }
+bollard = "0.21.0"
 futures-util = "0.3.32"
 portable-pty = "0.9.0"
 rusqlite = { version = "0.40.0", features = ["bundled"] }

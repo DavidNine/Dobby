@@ -5,7 +5,7 @@
 // active tab is owned by the App shell so the layout stays a single source of
 // truth (mirrors the stateless RangeSelector pattern in F5).
 
-export type Tab = 'overview' | 'terminal'
+export type Tab = 'overview' | 'terminal' | 'docker'
 
 interface SidebarItem {
   id: Tab
@@ -15,6 +15,7 @@ interface SidebarItem {
 const ITEMS: SidebarItem[] = [
   { id: 'overview', label: 'Resource Overview' },
   { id: 'terminal', label: 'Terminal' },
+  { id: 'docker', label: 'Docker Containers' },
 ]
 
 export interface SidebarProps {

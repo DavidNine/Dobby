@@ -25,6 +25,7 @@ mod storage;
 mod sampler;
 mod api;
 mod terminal;
+mod docker;
 
 use std::sync::Arc;
 

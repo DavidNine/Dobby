@@ -4,11 +4,13 @@
 // the right. The Sidebar tab state lives here (the single source of truth) and
 // switches the main panel between:
 //   - "overview" → the unchanged F6 Resource Overview (Dashboard),
-//   - "terminal" → the Terminal view.
+//   - "terminal" → the Terminal view,
+//   - "docker"   → the Docker Containers table.
 import { useState } from 'react'
 import Sidebar, { type Tab } from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Terminal from './pages/Terminal'
+import DockerContainers from './pages/DockerContainers'
 
 function App() {
   const [tab, setTab] = useState<Tab>('overview')
@@ -19,7 +21,9 @@ function App() {
       {/* min-w-0 lets the main column shrink instead of overflowing the grid;
           overflow-y-auto keeps the sidebar fixed while content scrolls. */}
       <main className="min-w-0 overflow-y-auto">
-        {tab === 'overview' ? <Dashboard /> : <Terminal />}
+        {tab === 'overview' && <Dashboard />}
+        {tab === 'terminal' && <Terminal />}
+        {tab === 'docker' && <DockerContainers />}
       </main>
     </div>
   )

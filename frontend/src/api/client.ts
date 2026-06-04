@@ -1,7 +1,13 @@
 // F1 — Typed HTTP client over `fetch` (HLD §4 F1, §B6).
 // Wraps the Backend metrics endpoints and returns typed data.
 
-import type { CurrentResponse, HistoryResponse, Range } from './types';
+import type {
+  ContainerAction,
+  CurrentResponse,
+  DockerListResponse,
+  HistoryResponse,
+  Range,
+} from './types';
 
 /**
  * Resolve the API base URL from the Vite env var `VITE_API_BASE`.
@@ -57,4 +63,37 @@ export async function getHistory(range: Range): Promise<HistoryResponse> {
   const query = new URLSearchParams({ range }).toString();
   const res = await request(`/api/metrics/history?${query}`);
   return (await res.json()) as HistoryResponse;
+}
+
+/**
+ * GET /api/docker/containers
+ * - non-2xx → throws.
+ * - 2xx → parsed DockerListResponse (note: a reachable endpoint with a DOWN
+ *   daemon still returns 2xx with `available: false`).
+ */
+export async function getContainers(): Promise<DockerListResponse> {
+  const res = await request('/api/docker/containers');
+  return (await res.json()) as DockerListResponse;
+}
+
+/**
+ * POST /api/docker/containers/{id}/{action} — run a lifecycle action.
+ * Throws with the backend's `error` message on non-2xx.
+ */
+export async function containerAction(
+  id: string,
+  action: ContainerAction,
+): Promise<void> {
+  const url = `${getApiBase()}/api/docker/containers/${encodeURIComponent(id)}/${action}`;
+  const res = await fetch(url, { method: 'POST' });
+  if (!res.ok) {
+    let message = `Request to ${url} failed with HTTP ${res.status}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body?.error) message = body.error;
+    } catch {
+      // Non-JSON error body; keep the generic message.
+    }
+    throw new Error(message);
+  }
 }
