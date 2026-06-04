@@ -260,6 +260,8 @@ pub fn build_router(
         .route("/api/health", get(health))
         .route("/api/metrics/current", get(current))
         .route("/api/metrics/history", get(history))
+        // B8 — interactive terminal over a WebSocket (PTY-backed bash).
+        .route("/ws/terminal", get(crate::terminal::terminal_ws))
         .layer(build_cors(cors_origins))
         .with_state(state)
 }
