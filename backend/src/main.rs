@@ -24,6 +24,7 @@ mod collector;
 mod storage;
 mod sampler;
 mod api;
+mod terminal;
 
 use std::sync::Arc;
 
