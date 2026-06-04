@@ -36,3 +36,33 @@ export interface HistoryResponse {
 
 /** Valid `range` query parameter values. */
 export type Range = '1h' | '6h' | '24h' | '7d';
+
+// --- Docker container management (GET /api/docker/containers, B9) ----------
+
+/** A published port mapping on a container. */
+export interface DockerPort {
+  private: number;
+  public: number | null;
+  type: string;
+}
+
+/** One container row. `state` is the canonical lowercase Docker state. */
+export interface DockerContainer {
+  id: string;
+  name: string;
+  image: string;
+  state: string;
+  status: string;
+  created: number;
+  ports: DockerPort[];
+}
+
+/** GET /api/docker/containers. `available` is false when the daemon is down. */
+export interface DockerListResponse {
+  available: boolean;
+  error: string | null;
+  containers: DockerContainer[];
+}
+
+/** Lifecycle actions accepted by POST /api/docker/containers/{id}/{action}. */
+export type ContainerAction = 'restart' | 'start' | 'stop';

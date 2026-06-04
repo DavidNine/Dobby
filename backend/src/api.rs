@@ -15,7 +15,7 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
@@ -24,9 +24,15 @@ use crate::domain::{AppError, MetricPoint, MetricSample, TimeRange};
 use crate::storage::MetricsRepository;
 
 /// Shared, cloneable application state injected into handlers.
+///
+/// `pub(crate)` so the B9 Docker handlers (a sibling module) can read `docker`.
 #[derive(Clone)]
-struct AppState {
-    repo: Arc<dyn MetricsRepository + Send + Sync>,
+pub(crate) struct AppState {
+    pub(crate) repo: Arc<dyn MetricsRepository + Send + Sync>,
+    /// Docker daemon client, or `None` when the socket could not be set up.
+    /// `bollard::Docker` is internally `Arc`-backed, so cloning `AppState` is
+    /// cheap and shares one client.
+    pub(crate) docker: Option<bollard::Docker>,
 }
 
 // ---------------------------------------------------------------------------
@@ -227,7 +233,8 @@ async fn history(
 fn build_cors(cors_origins: &str) -> CorsLayer {
     use axum::http::Method;
 
-    let layer = CorsLayer::new().allow_methods([Method::GET]);
+    // GET for metrics/list reads; POST for Docker lifecycle actions (B9).
+    let layer = CorsLayer::new().allow_methods([Method::GET, Method::POST]);
 
     if cors_origins.trim() == "*" {
         return layer.allow_origin(Any);
@@ -254,7 +261,18 @@ pub fn build_router(
     repo: Arc<dyn MetricsRepository + Send + Sync>,
     cors_origins: &str,
 ) -> Router {
-    let state = AppState { repo };
+    // Set up the Docker client (B9). `connect_with_socket_defaults` only builds
+    // the client; an unreachable daemon surfaces lazily at request time, where
+    // handlers degrade gracefully — so a missing daemon never breaks startup.
+    let docker = match bollard::Docker::connect_with_socket_defaults() {
+        Ok(client) => Some(client),
+        Err(e) => {
+            tracing::warn!(error = %e, "docker client unavailable; container endpoints will report unavailable");
+            None
+        }
+    };
+
+    let state = AppState { repo, docker };
 
     Router::new()
         .route("/api/health", get(health))
@@ -262,6 +280,15 @@ pub fn build_router(
         .route("/api/metrics/history", get(history))
         // B8 — interactive terminal over a WebSocket (PTY-backed bash).
         .route("/ws/terminal", get(crate::terminal::terminal_ws))
+        // B9 — Docker container management.
+        .route(
+            "/api/docker/containers",
+            get(crate::docker::list_containers),
+        )
+        .route(
+            "/api/docker/containers/{id}/{action}",
+            post(crate::docker::container_action),
+        )
         .layer(build_cors(cors_origins))
         .with_state(state)
 }
