@@ -13,6 +13,7 @@ import { useEffect, useRef } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { useCssVar } from '../hooks/useCssVar'
 
 /**
  * Resolve the `/ws/terminal` URL. Mirrors the HTTP client's `VITE_API_BASE`
@@ -28,20 +29,46 @@ function terminalWsUrl(): string {
   return `${proto}://${window.location.host}/ws/terminal`
 }
 
+/** xterm's canvas needs a solid color; the glass theme's --color-bg is a
+ *  gradient, so fall back to a solid dark for the console in that case. */
+function solidBg(value: string): string {
+  return value.includes('gradient') ? '#0f172a' : value
+}
+
 export default function Terminal() {
   const hostRef = useRef<HTMLDivElement>(null)
+  const termRef = useRef<XTerm | null>(null)
+
+  // Follow the active theme (same approach as the charts): these re-read on
+  // every `data-theme` change and drive the re-theme effect below.
+  const bg = useCssVar('--color-bg', '#0f172a')
+  const fg = useCssVar('--color-text-main', '#f1f5f9')
+  const cursor = useCssVar('--color-accent', '#3b82f6')
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+
+    // Read the initial colors straight from the DOM so the terminal boots with
+    // the right palette — without taking the reactive values as effect deps,
+    // which would recreate (and disconnect) the session on every theme switch.
+    const css = getComputedStyle(document.documentElement)
+    const initial = (name: string, fallback: string) =>
+      css.getPropertyValue(name).trim() || fallback
 
     // 1. Boot the terminal + fit addon.
     const term = new XTerm({
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
       fontSize: 13,
       cursorBlink: true,
-      theme: { background: '#0f172a' }, // slate-900, matches the panel chrome
+      theme: {
+        background: solidBg(initial('--color-bg', '#0f172a')),
+        foreground: initial('--color-text-main', '#f1f5f9'),
+        cursor: initial('--color-accent', '#3b82f6'),
+        cursorAccent: solidBg(initial('--color-bg', '#0f172a')),
+      },
     })
+    termRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(host)
@@ -89,19 +116,36 @@ export default function Terminal() {
       dataSub.dispose()
       ws.close()
       term.dispose()
+      termRef.current = null
     }
   }, [])
 
+  // Re-theme the live terminal whenever the CSS theme variables change. Setting
+  // `options.theme` makes xterm repaint immediately — the equivalent of the
+  // charts' borderColor update + chart.update().
+  useEffect(() => {
+    const term = termRef.current
+    if (!term) return
+    term.options.theme = {
+      background: solidBg(bg),
+      foreground: fg,
+      cursor,
+      cursorAccent: solidBg(bg),
+    }
+  }, [bg, fg, cursor])
+
   return (
-    <div className="flex h-full flex-col bg-slate-50 text-slate-800 dark:bg-gray-900 dark:text-gray-100">
+    <div className="flex h-full flex-col bg-background text-main">
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-4">
           <h1 className="text-2xl font-semibold">Terminal</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-muted">
             Live bash session over WebSocket.
           </p>
         </header>
-        <div className="flex-1 overflow-hidden rounded-xl border border-gray-200 bg-[#0f172a] p-3 shadow-sm dark:border-gray-700">
+        {/* Panel background follows --color-bg so the padding matches the
+            terminal canvas, which is themed via xterm's options.theme. */}
+        <div className="flex-1 overflow-hidden rounded-xl border border-border bg-background p-3 shadow-sm">
           <div ref={hostRef} className="h-full w-full" />
         </div>
       </div>

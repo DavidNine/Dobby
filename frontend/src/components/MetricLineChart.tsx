@@ -17,6 +17,7 @@ import {
 } from 'chart.js'
 import type { HistoryPoint, Range } from '../api/types'
 import { formatTimeAxis } from '../utils/format'
+import { useCssVar } from '../hooks/useCssVar'
 
 // Register the Chart.js building blocks a Line chart needs, once at module load.
 // `Title` is required for the chart title AND the per-axis titles to render.
@@ -47,14 +48,20 @@ export default function MetricLineChart({ title, points, field, range, yLabel }:
   const labels = points.map((p) => formatTimeAxis(p.timestamp, range))
   const values = points.map((p) => p[field])
 
+  // Follow the theme accent. Reading the CSS var here means a `data-theme`
+  // change re-renders with the new color; react-chartjs-2 then calls
+  // chart.update() internally to redraw the line.
+  const accent = useCssVar('--color-accent', 'rgb(59, 130, 246)')
+
   const data = {
     labels,
     datasets: [
       {
         label: title,
         data: values,
-        borderColor: 'rgb(59, 130, 246)',
-        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+        borderColor: accent,
+        backgroundColor: accent,
+        pointBackgroundColor: accent,
         tension: 0.3,
         pointRadius: 0,
       },
@@ -80,7 +87,7 @@ export default function MetricLineChart({ title, points, field, range, yLabel }:
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+    <div className="glass-surface rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="h-48 w-full sm:h-64">
         <Line data={data} options={options} />
       </div>

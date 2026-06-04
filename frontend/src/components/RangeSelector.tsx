@@ -14,7 +14,7 @@ const RANGES: Range[] = ['1h', '6h', '24h', '7d']
 
 export default function RangeSelector({ value, onChange }: RangeSelectorProps) {
   return (
-    <div role="group" aria-label="Time range" className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800">
+    <div role="group" aria-label="Time range" className="inline-flex rounded-lg border border-border bg-card p-1">
       {RANGES.map((r) => {
         const active = r === value
         return (
@@ -27,8 +27,8 @@ export default function RangeSelector({ value, onChange }: RangeSelectorProps) {
             className={
               'rounded-md px-3 py-1 text-sm font-medium transition-colors ' +
               (active
-                ? 'bg-blue-600 text-white shadow'
-                : 'text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700')
+                ? 'bg-accent text-accent-contrast shadow'
+                : 'text-muted hover:bg-background')
             }
           >
             {r}

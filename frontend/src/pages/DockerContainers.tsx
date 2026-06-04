@@ -44,11 +44,11 @@ export default function DockerContainers() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-gray-900 dark:text-gray-100">
+    <div className="min-h-screen bg-background text-main">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold">Docker Containers</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-muted">
             Containers on this host. Updates every few seconds.
           </p>
         </header>
@@ -107,9 +107,9 @@ function ContainersBody({
   if (containers.length === 0) return <Notice>No containers found.</Notice>
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+    <div className="glass-surface overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <thead className="border-b border-border text-xs uppercase tracking-wide text-muted">
           <tr>
             <th className="px-4 py-3 font-medium">Name</th>
             <th className="px-4 py-3 font-medium">Image</th>
@@ -117,11 +117,11 @@ function ContainersBody({
             <th className="px-4 py-3 text-right font-medium">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+        <tbody className="divide-y divide-border">
           {containers.map((c) => (
             <tr key={c.id}>
               <td className="px-4 py-3 font-mono font-medium">{c.name}</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{c.image}</td>
+              <td className="px-4 py-3 text-muted">{c.image}</td>
               <td className="px-4 py-3">
                 <StatusLight state={c.state} status={c.status} />
               </td>
@@ -133,7 +133,7 @@ function ContainersBody({
                       type="button"
                       disabled={pendingId === c.id}
                       onClick={() => onAction(c, action)}
-                      className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                      className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-main transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {pendingId === c.id ? '…' : ACTION_LABEL[action]}
                     </button>
@@ -158,7 +158,7 @@ function Notice({
   const isError = tone === 'error'
   const cls = isError
     ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300'
-    : 'border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
+    : 'border-border bg-card text-muted'
   return (
     <div
       role={isError ? 'alert' : undefined}
