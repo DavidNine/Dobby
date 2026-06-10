@@ -1,3 +1,105 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Theme tokens
+ * ------------
+ * Semantic CSS variables consumed by Tailwind (see tailwind.config.js, which
+ * maps `bg-background`, `bg-card`, `text-main`, `text-muted`, `*-accent`,
+ * `text-accent-contrast`, `*-border` onto these vars). Switch themes by setting
+ * the attribute on the <html> element, e.g. <html data-theme="muji">.
+ *
+ * `:root` holds the DEFAULT theme (dark), so the app is themed even before any
+ * JS runs. [data-theme="dark"] repeats it so an explicit selection also works.
+ *
+ * NOTE: --color-bg may be a COLOR or a GRADIENT (glass). Page backgrounds are
+ * applied with the `background` shorthand (which accepts both); Tailwind's
+ * `bg-background` (background-color) is only meaningful for the solid themes —
+ * under glass it is ignored and the body gradient shows through.
+ *
+ * --color-accent-contrast (legible text/icon on an accent background) is set
+ * once on :root and inherited by every theme.
+ */
+@layer base {
+  :root,
+  [data-theme='dark'] {
+    --color-bg: #0b0e14;
+    --color-card: #161b22;
+    --color-text-main: #f0f6fc;
+    --color-text-muted: #8b949e;
+    --color-accent: #2f81f7; /* 科技藍 */
+    --color-accent-contrast: #ffffff;
+    --color-border: #30363d;
+  }
+
+  /* 極簡溫潤無印風 (Muji) — warm tatami off-white, roasted-tea brown accent. */
+  [data-theme='muji'] {
+    --color-bg: #f5f4f0;
+    --color-card: #ffffff;
+    --color-text-main: #333333;
+    --color-text-muted: #7f7f7f;
+    --color-accent: #8c644d; /* 焙茶棕 / 木質調 */
+    --color-border: #e5e3dd;
+  }
+
+  /* 賽博龐克 (Cyberpunk) — pure black, matrix green text, neon pink accent. */
+  [data-theme='cyberpunk'] {
+    --color-bg: #000000;
+    --color-card: #0d0d0d;
+    --color-text-main: #00ff66; /* 螢光矩陣綠 */
+    --color-text-muted: #00aa44;
+    --color-accent: #ff007f; /* 霓虹粉紅 */
+    --color-border: rgb(0 255 102 / 25%); /* faint green glow edge */
+  }
+
+  /* Dobby Cat — inspired by a Dobby cat's coat: deep stripe charcoal, dark
+     tabby brown cards, oatmeal-beige fur text and a soft pink paw-pad accent.
+     --color-accent-contrast is overridden so text on the pink active nav item
+     shifts to the bg color (#1E1B18) for optimal contrast. */
+  [data-theme='dobby-cat'] {
+    --color-bg: #1e1b18; /* deep stripe charcoal black */
+    --color-card: #2a2421; /* dark tabby brown */
+    --color-text-main: #e6d5c3; /* oatmeal beige / light fur */
+    --color-text-muted: #a89a8d; /* warm muted fur gray */
+    --color-accent: #ffb7b2; /* soft pink paw pad */
+    --color-accent-contrast: #1e1b18;
+    --color-border: #3d3530; /* subtle dark brown */
+  }
+
+  /* 毛玻璃風 (Glassmorphism) — gradient backdrop, ultra-translucent cards. */
+  [data-theme='glass'] {
+    --color-bg: linear-gradient(135deg, #0f172a, #1e1b4b);
+    --color-card: rgb(255 255 255 / 3%); /* 極致通透 */
+    --color-text-main: #ffffff;
+    --color-text-muted: rgb(255 255 255 / 50%);
+    --color-accent: #a855f7; /* 迷幻紫 */
+    --color-border: rgb(255 255 255 / 15%);
+  }
+
+  /* Page-level background via the `background` shorthand so a gradient (glass)
+     works as well as a solid color, plus a gentle transition on theme switch. */
+  body {
+    min-height: 100vh;
+    background: var(--color-bg);
+    background-attachment: fixed;
+    color: var(--color-text-main);
+  }
+
+  body,
+  body * {
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+}
+
+@layer components {
+  /* Applied to cards/panels: a no-op on opaque themes, but on the glass theme
+     the translucent --color-card lets the blurred gradient show through. Built
+     on Tailwind's backdrop utility so it gets correct cross-browser prefixes. */
+  .glass-surface {
+    @apply backdrop-blur-md;
+  }
+}

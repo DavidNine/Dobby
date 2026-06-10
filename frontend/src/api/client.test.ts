@@ -1,8 +1,12 @@
 // F1 — API Client tests. Mocks global `fetch` (vitest jsdom, globals enabled).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getCurrent, getHistory } from './client';
-import type { CurrentResponse, HistoryResponse } from './types';
+import { getContainerDetails, getCurrent, getHistory } from './client';
+import type {
+  CurrentResponse,
+  DockerContainerDetails,
+  HistoryResponse,
+} from './types';
 
 /** Build a minimal Response-like object for the mocked fetch. */
 function fakeResponse(opts: {
@@ -93,6 +97,59 @@ describe('getCurrent', () => {
     await getCurrent();
 
     expect(lastFetchUrl()).toBe('http://localhost:8080/api/metrics/current');
+  });
+});
+
+describe('getContainerDetails', () => {
+  it('builds the correct URL and parses the details payload', async () => {
+    const payload: DockerContainerDetails = {
+      id: 'abc123',
+      name: 'web',
+      image: 'nginx:1.27',
+      state: 'running',
+      exit_code: 0,
+      created: '2026-06-01T10:00:00Z',
+      started_at: '2026-06-10T08:00:00Z',
+      finished_at: null,
+      restart_policy: 'unless-stopped',
+      restart_count: 0,
+      platform: 'linux',
+      command: 'nginx -g daemon off;',
+      working_dir: null,
+      env: ['PATH=/usr/bin'],
+      labels: {},
+      ports: [
+        { container_port: 80, protocol: 'tcp', host_ip: '0.0.0.0', host_port: 8080 },
+      ],
+      mounts: [],
+      networks: [],
+    };
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      fakeResponse({ status: 200, jsonBody: payload }),
+    );
+
+    const result = await getContainerDetails('abc123');
+
+    expect(lastFetchUrl().endsWith('/api/docker/containers/abc123')).toBe(true);
+    expect(result).toEqual(payload);
+  });
+
+  it('URL-encodes the container id', async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      fakeResponse({ status: 200, jsonBody: {} }),
+    );
+
+    await getContainerDetails('a/b');
+
+    expect(lastFetchUrl().endsWith('/api/docker/containers/a%2Fb')).toBe(true);
+  });
+
+  it('throws on a non-2xx response (404)', async () => {
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      fakeResponse({ status: 404, ok: false }),
+    );
+
+    await expect(getContainerDetails('nope')).rejects.toThrow(/404/);
   });
 });
 

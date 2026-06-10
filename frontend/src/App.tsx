@@ -5,15 +5,21 @@
 // switches the main panel between:
 //   - "overview" → the unchanged F6 Resource Overview (Dashboard),
 //   - "terminal" → the Terminal view,
-//   - "docker"   → the Docker Containers table.
+//   - "docker"   → the Docker Containers table,
+//   - "settings" → the Settings view (theme switcher).
+//
+// useTheme is called here (the root) so the saved theme applies on every tab.
 import { useState } from 'react'
 import Sidebar, { type Tab } from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Terminal from './pages/Terminal'
 import DockerContainers from './pages/DockerContainers'
+import Settings from './pages/Settings'
+import { useTheme } from './hooks/useTheme'
 
 function App() {
   const [tab, setTab] = useState<Tab>('overview')
+  const { theme, setTheme } = useTheme()
 
   return (
     <div className="grid h-screen grid-cols-[250px_1fr]">
@@ -24,6 +30,7 @@ function App() {
         {tab === 'overview' && <Dashboard />}
         {tab === 'terminal' && <Terminal />}
         {tab === 'docker' && <DockerContainers />}
+        {tab === 'settings' && <Settings theme={theme} onChange={setTheme} />}
       </main>
     </div>
   )

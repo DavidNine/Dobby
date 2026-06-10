@@ -66,3 +66,54 @@ export interface DockerListResponse {
 
 /** Lifecycle actions accepted by POST /api/docker/containers/{id}/{action}. */
 export type ContainerAction = 'restart' | 'start' | 'stop';
+
+// --- Container details (GET /api/docker/containers/{id}) -------------------
+
+/** One host binding of a container port (null host fields = exposed only). */
+export interface DockerPortBinding {
+  container_port: number;
+  protocol: string;
+  host_ip: string | null;
+  host_port: number | null;
+}
+
+/** A filesystem mount on the container. */
+export interface DockerMount {
+  type: string | null;
+  name: string | null;
+  source: string | null;
+  destination: string | null;
+  mode: string | null;
+  rw: boolean | null;
+}
+
+/** The container's attachment to one Docker network. */
+export interface DockerNetwork {
+  name: string;
+  ip_address: string | null;
+  gateway: string | null;
+  mac_address: string | null;
+}
+
+/** GET /api/docker/containers/{id} — detail subset of `docker inspect`. */
+export interface DockerContainerDetails {
+  id: string;
+  name: string;
+  image: string;
+  state: string;
+  exit_code: number | null;
+  /** RFC 3339 timestamps (started/finished are null when never run). */
+  created: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  restart_policy: string | null;
+  restart_count: number;
+  platform: string | null;
+  command: string | null;
+  working_dir: string | null;
+  env: string[];
+  labels: Record<string, string>;
+  ports: DockerPortBinding[];
+  mounts: DockerMount[];
+  networks: DockerNetwork[];
+}

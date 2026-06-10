@@ -3,13 +3,16 @@
 // Renders a simple table (Name / Image / Status / Actions) of the host's
 // containers, polled via useDockerContainers. Lifecycle buttons (Start / Stop /
 // Restart) POST to the backend and refresh the list on completion; the row's
-// buttons are disabled while one of its actions is in flight.
+// buttons are disabled while one of its actions is in flight. Each row expands
+// (via its Details chevron) into a ContainerDetailsPanel showing the inspect
+// data: port bindings, mounts, networks, command, restart policy, …
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { containerAction } from '../api/client'
 import type { ContainerAction, DockerContainer } from '../api/types'
 import { useDockerContainers } from '../hooks/useDockerContainers'
 import StatusLight from '../components/StatusLight'
+import ContainerDetailsPanel from '../components/ContainerDetailsPanel'
 
 /** Which lifecycle buttons to show for a given container state. */
 function actionsFor(state: string): ContainerAction[] {
@@ -44,11 +47,11 @@ export default function DockerContainers() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-gray-900 dark:text-gray-100">
+    <div className="min-h-screen bg-background text-main">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold">Docker Containers</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-muted">
             Containers on this host. Updates every few seconds.
           </p>
         </header>
@@ -95,6 +98,9 @@ function ContainersBody({
   pendingId,
   onAction,
 }: BodyProps) {
+  // Id of the row whose details panel is expanded (one at a time).
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
   if (loading) return <Notice>Loading containers…</Notice>
   if (error) return <Notice tone="error">Error: {error.message}</Notice>
   if (!available) {
@@ -107,41 +113,71 @@ function ContainersBody({
   if (containers.length === 0) return <Notice>No containers found.</Notice>
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+    <div className="glass-surface overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <thead className="border-b border-border text-xs uppercase tracking-wide text-muted">
           <tr>
+            <th className="w-10 px-4 py-3" aria-label="Details" />
             <th className="px-4 py-3 font-medium">Name</th>
             <th className="px-4 py-3 font-medium">Image</th>
             <th className="px-4 py-3 font-medium">Status</th>
             <th className="px-4 py-3 text-right font-medium">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-          {containers.map((c) => (
-            <tr key={c.id}>
-              <td className="px-4 py-3 font-mono font-medium">{c.name}</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{c.image}</td>
-              <td className="px-4 py-3">
-                <StatusLight state={c.state} status={c.status} />
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex justify-end gap-2">
-                  {actionsFor(c.state).map((action) => (
+        <tbody className="divide-y divide-border">
+          {containers.map((c) => {
+            const expanded = expandedId === c.id
+            return (
+              // Fragment keyed by id; the optional details <tr> follows the row.
+              <Fragment key={c.id}>
+                <tr>
+                  <td className="px-4 py-3">
                     <button
-                      key={action}
                       type="button"
-                      disabled={pendingId === c.id}
-                      onClick={() => onAction(c, action)}
-                      className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                      aria-expanded={expanded}
+                      aria-label={`Details of ${c.name}`}
+                      onClick={() => setExpandedId(expanded ? null : c.id)}
+                      className="rounded-md px-1.5 py-0.5 text-muted transition-colors hover:bg-background hover:text-main"
                     >
-                      {pendingId === c.id ? '…' : ACTION_LABEL[action]}
+                      <span
+                        aria-hidden
+                        className={`inline-block transition-transform ${expanded ? 'rotate-90' : ''}`}
+                      >
+                        ▸
+                      </span>
                     </button>
-                  ))}
-                </div>
-              </td>
-            </tr>
-          ))}
+                  </td>
+                  <td className="px-4 py-3 font-mono font-medium">{c.name}</td>
+                  <td className="px-4 py-3 text-muted">{c.image}</td>
+                  <td className="px-4 py-3">
+                    <StatusLight state={c.state} status={c.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      {actionsFor(c.state).map((action) => (
+                        <button
+                          key={action}
+                          type="button"
+                          disabled={pendingId === c.id}
+                          onClick={() => onAction(c, action)}
+                          className="rounded-md border border-main px-2.5 py-1 text-xs font-medium text-main transition-opacity hover:opacity-75 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {pendingId === c.id ? '…' : ACTION_LABEL[action]}
+                        </button>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+                {expanded && (
+                  <tr>
+                    <td colSpan={5} className="bg-background px-6 py-4">
+                      <ContainerDetailsPanel key={c.id} id={c.id} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -158,7 +194,7 @@ function Notice({
   const isError = tone === 'error'
   const cls = isError
     ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300'
-    : 'border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
+    : 'border-border bg-card text-muted'
   return (
     <div
       role={isError ? 'alert' : undefined}

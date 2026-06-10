@@ -41,7 +41,7 @@ export default function Dashboard() {
   const netUpSub = current ? `↑ ${formatRate(current.network.tx_bps)}` : undefined
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-gray-900 dark:text-gray-100">
+    <div className="min-h-screen bg-background text-main">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>

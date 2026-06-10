@@ -24,7 +24,7 @@ export default function StatusBar({ lastUpdated, error, loading }: StatusBarProp
 
   if (loading) {
     return (
-      <div role="status" className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+      <div role="status" className="flex items-center gap-2 text-sm text-muted">
         <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-yellow-400" />
         <span>Loading…</span>
       </div>
