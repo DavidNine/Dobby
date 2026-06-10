@@ -286,6 +286,10 @@ pub fn build_router(
             get(crate::docker::list_containers),
         )
         .route(
+            "/api/docker/containers/{id}",
+            get(crate::docker::inspect_container),
+        )
+        .route(
             "/api/docker/containers/{id}/{action}",
             post(crate::docker::container_action),
         )

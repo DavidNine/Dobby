@@ -4,6 +4,8 @@
 //! the `/var/run/docker.sock` unix socket) exposing:
 //!
 //!   - `GET  /api/docker/containers`              — list all containers,
+//!   - `GET  /api/docker/containers/{id}`          — inspect one container
+//!     (ports with host bindings, mounts, networks, command, restart policy…),
 //!   - `POST /api/docker/containers/{id}/{action}` — lifecycle action, where
 //!     `action ∈ { restart, start, stop }`.
 //!
@@ -25,9 +27,10 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use bollard::errors::Error as DockerError;
-use bollard::models::ContainerSummary;
-use bollard::query_parameters::ListContainersOptionsBuilder;
+use bollard::models::{ContainerInspectResponse, ContainerSummary};
+use bollard::query_parameters::{InspectContainerOptions, ListContainersOptionsBuilder};
 use serde::Serialize;
+use std::collections::BTreeMap;
 
 use crate::api::AppState;
 
@@ -132,6 +135,226 @@ impl From<ContainerSummary> for ContainerDto {
     }
 }
 
+// --- Container detail (inspect) DTOs ---------------------------------------
+
+/// One published-port binding row in the detail view. Unlike the list's
+/// [`PortDto`], every host binding (per address) is kept, so e.g. an IPv4 and
+/// an IPv6 binding of the same container port show up as two rows.
+#[derive(Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+struct PortBindingDto {
+    /// Port inside the container.
+    container_port: u16,
+    /// `tcp` | `udp` | `sctp`.
+    protocol: String,
+    /// Host address the port is bound to (null for an exposed-only port).
+    host_ip: Option<String>,
+    /// Host port (null for an exposed-only port).
+    host_port: Option<u16>,
+}
+
+/// A filesystem mount on the container (bind mount, volume, tmpfs…).
+#[derive(Debug, Serialize)]
+struct MountDto {
+    /// `bind` | `volume` | `tmpfs` | `npipe` | …
+    #[serde(rename = "type")]
+    typ: Option<String>,
+    /// Volume name when the mount is a named volume.
+    name: Option<String>,
+    /// Host-side source path (empty/null for tmpfs).
+    source: Option<String>,
+    /// Path inside the container.
+    destination: Option<String>,
+    /// User-supplied mount options, e.g. `ro,z`.
+    mode: Option<String>,
+    /// Whether the mount is writable.
+    rw: Option<bool>,
+}
+
+/// The container's attachment to one Docker network.
+#[derive(Debug, Serialize)]
+struct NetworkDto {
+    /// Network name, e.g. `bridge` or a compose network.
+    name: String,
+    ip_address: Option<String>,
+    gateway: Option<String>,
+    mac_address: Option<String>,
+}
+
+/// `GET /api/docker/containers/{id}` response — the detail subset of
+/// `docker inspect` the UI renders.
+#[derive(Debug, Serialize)]
+struct ContainerDetailsDto {
+    id: String,
+    name: String,
+    /// Image reference from the container config (falls back to the digest).
+    image: String,
+    /// Canonical lowercase state, as in the list endpoint.
+    state: String,
+    /// Exit code of the last run (meaningful for exited containers).
+    exit_code: Option<i64>,
+    /// RFC 3339 creation time.
+    created: Option<String>,
+    /// RFC 3339 time of the last start / exit.
+    started_at: Option<String>,
+    finished_at: Option<String>,
+    /// Restart policy name, e.g. `unless-stopped` (null when unset/`no`).
+    restart_policy: Option<String>,
+    restart_count: i64,
+    platform: Option<String>,
+    /// Resolved command line: path + args.
+    command: Option<String>,
+    working_dir: Option<String>,
+    env: Vec<String>,
+    /// BTreeMap for a stable, sorted serialisation order.
+    labels: BTreeMap<String, String>,
+    ports: Vec<PortBindingDto>,
+    mounts: Vec<MountDto>,
+    networks: Vec<NetworkDto>,
+}
+
+impl From<ContainerInspectResponse> for ContainerDetailsDto {
+    fn from(c: ContainerInspectResponse) -> Self {
+        let id = c.id.unwrap_or_default();
+        let name = c
+            .name
+            .map(|n| n.trim_start_matches('/').to_string())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| id.chars().take(12).collect());
+
+        let config = c.config;
+        let state = c.state;
+        let host_config = c.host_config;
+        let network_settings = c.network_settings;
+
+        // Friendly image ref lives in Config.Image; top-level Image is a digest.
+        let image = config
+            .as_ref()
+            .and_then(|cfg| cfg.image.clone())
+            .or(c.image)
+            .unwrap_or_default();
+
+        // PortMap: "80/tcp" -> Option<Vec<PortBinding>>. A key with no bindings
+        // is an exposed-but-unpublished port; keep it with null host fields.
+        let mut ports: Vec<PortBindingDto> = network_settings
+            .as_ref()
+            .and_then(|ns| ns.ports.clone())
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(key, bindings)| {
+                let (port, proto) = key.split_once('/')?;
+                let container_port: u16 = port.parse().ok()?;
+                let protocol = proto.to_string();
+                let rows = match bindings {
+                    Some(list) if !list.is_empty() => list
+                        .into_iter()
+                        .map(|b| PortBindingDto {
+                            container_port,
+                            protocol: protocol.clone(),
+                            host_ip: b.host_ip.filter(|ip| !ip.is_empty()),
+                            host_port: b.host_port.and_then(|p| p.parse().ok()),
+                        })
+                        .collect(),
+                    _ => vec![PortBindingDto {
+                        container_port,
+                        protocol,
+                        host_ip: None,
+                        host_port: None,
+                    }],
+                };
+                Some(rows)
+            })
+            .flatten()
+            .collect();
+        ports.sort();
+        ports.dedup();
+
+        let mut mounts: Vec<MountDto> = c
+            .mounts
+            .unwrap_or_default()
+            .into_iter()
+            .map(|m| MountDto {
+                typ: m.typ,
+                name: m.name,
+                source: m.source.filter(|s| !s.is_empty()),
+                destination: m.destination,
+                mode: m.mode.filter(|s| !s.is_empty()),
+                rw: m.rw,
+            })
+            .collect();
+        mounts.sort_by(|a, b| a.destination.cmp(&b.destination));
+
+        let mut networks: Vec<NetworkDto> = network_settings
+            .and_then(|ns| ns.networks)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(network_name, ep)| NetworkDto {
+                name: network_name,
+                ip_address: ep.ip_address.filter(|s| !s.is_empty()),
+                gateway: ep.gateway.filter(|s| !s.is_empty()),
+                mac_address: ep.mac_address.filter(|s| !s.is_empty()),
+            })
+            .collect();
+        networks.sort_by(|a, b| a.name.cmp(&b.name));
+
+        // Resolved command: the actual path + args Docker ran.
+        let command = c.path.map(|path| {
+            let args = c.args.unwrap_or_default();
+            if args.is_empty() {
+                path
+            } else {
+                format!("{path} {}", args.join(" "))
+            }
+        });
+
+        // Treat Docker's default "no"/empty policy as "none set".
+        let restart_policy = host_config
+            .as_ref()
+            .and_then(|hc| hc.restart_policy.as_ref())
+            .and_then(|rp| rp.name)
+            .map(|n| n.to_string())
+            .filter(|n| !n.is_empty() && n != "no");
+
+        ContainerDetailsDto {
+            id,
+            name,
+            image,
+            state: state
+                .as_ref()
+                .and_then(|s| s.status)
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "unknown".to_string()),
+            exit_code: state.as_ref().and_then(|s| s.exit_code),
+            created: c.created,
+            started_at: state
+                .as_ref()
+                .and_then(|s| s.started_at.clone())
+                .filter(|t| !t.starts_with("0001-")),
+            finished_at: state
+                .and_then(|s| s.finished_at)
+                .filter(|t| !t.starts_with("0001-")),
+            restart_policy,
+            restart_count: c.restart_count.unwrap_or(0),
+            platform: c.platform,
+            command,
+            working_dir: config
+                .as_ref()
+                .and_then(|cfg| cfg.working_dir.clone())
+                .filter(|s| !s.is_empty()),
+            env: config
+                .as_ref()
+                .and_then(|cfg| cfg.env.clone())
+                .unwrap_or_default(),
+            labels: config
+                .and_then(|cfg| cfg.labels)
+                .map(|l| l.into_iter().collect())
+                .unwrap_or_default(),
+            ports,
+            mounts,
+            networks,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
@@ -158,6 +381,32 @@ pub async fn list_containers(State(state): State<AppState>) -> Response {
         }
         // Daemon down / socket missing: degrade gracefully (HTTP 200).
         Err(e) => unavailable(&e.to_string()),
+    }
+}
+
+/// `GET /api/docker/containers/{id}` — detailed info for one container.
+///
+/// Unlike the list endpoint this does not degrade to a 200: the UI only asks
+/// for details from an already-rendered row, so daemon errors surface as 5xx
+/// (and an unknown id as Docker's own 404).
+pub async fn inspect_container(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Response {
+    let Some(docker) = state.docker.as_ref() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Docker client was not initialised" })),
+        )
+            .into_response();
+    };
+
+    match docker
+        .inspect_container(&id, None::<InspectContainerOptions>)
+        .await
+    {
+        Ok(details) => Json(ContainerDetailsDto::from(details)).into_response(),
+        Err(e) => map_docker_error(e),
     }
 }
 
@@ -234,4 +483,156 @@ fn map_docker_error(e: DockerError) -> Response {
         _ => StatusCode::BAD_GATEWAY,
     };
     (status, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bollard::models::{
+        ContainerConfig, ContainerState, ContainerStateStatusEnum, EndpointSettings, HostConfig,
+        MountPoint, NetworkSettings, PortBinding, RestartPolicy, RestartPolicyNameEnum,
+    };
+    use std::collections::HashMap;
+
+    /// A representative `docker inspect` payload covering ports (published,
+    /// dual-stack and exposed-only), mounts, networks and host config.
+    fn inspect_fixture() -> ContainerInspectResponse {
+        let mut ports = HashMap::new();
+        ports.insert(
+            "80/tcp".to_string(),
+            Some(vec![
+                PortBinding {
+                    host_ip: Some("0.0.0.0".into()),
+                    host_port: Some("8080".into()),
+                },
+                PortBinding {
+                    host_ip: Some("::".into()),
+                    host_port: Some("8080".into()),
+                },
+            ]),
+        );
+        // Exposed but not published.
+        ports.insert("9090/tcp".to_string(), None);
+
+        let mut networks = HashMap::new();
+        networks.insert(
+            "bridge".to_string(),
+            EndpointSettings {
+                ip_address: Some("172.17.0.2".into()),
+                gateway: Some("172.17.0.1".into()),
+                mac_address: Some("02:42:ac:11:00:02".into()),
+                ..Default::default()
+            },
+        );
+
+        ContainerInspectResponse {
+            id: Some("deadbeef1234".into()),
+            name: Some("/web".into()),
+            created: Some("2026-06-01T10:00:00.000000000Z".into()),
+            path: Some("nginx".into()),
+            args: Some(vec!["-g".into(), "daemon off;".into()]),
+            restart_count: Some(2),
+            platform: Some("linux".into()),
+            state: Some(ContainerState {
+                status: Some(ContainerStateStatusEnum::RUNNING),
+                exit_code: Some(0),
+                started_at: Some("2026-06-10T08:00:00Z".into()),
+                finished_at: Some("0001-01-01T00:00:00Z".into()),
+                ..Default::default()
+            }),
+            host_config: Some(HostConfig {
+                restart_policy: Some(RestartPolicy {
+                    name: Some(RestartPolicyNameEnum::UNLESS_STOPPED),
+                    maximum_retry_count: None,
+                }),
+                ..Default::default()
+            }),
+            config: Some(ContainerConfig {
+                image: Some("nginx:1.27".into()),
+                working_dir: Some("/srv".into()),
+                env: Some(vec!["PATH=/usr/bin".into()]),
+                labels: Some(HashMap::from([(
+                    "com.example.app".to_string(),
+                    "web".to_string(),
+                )])),
+                ..Default::default()
+            }),
+            mounts: Some(vec![MountPoint {
+                typ: Some("bind".into()),
+                source: Some("/srv/data".into()),
+                destination: Some("/data".into()),
+                mode: Some("rw".into()),
+                rw: Some(true),
+                ..Default::default()
+            }]),
+            network_settings: Some(NetworkSettings {
+                ports: Some(ports),
+                networks: Some(networks),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn details_dto_maps_core_fields() {
+        let dto = ContainerDetailsDto::from(inspect_fixture());
+
+        assert_eq!(dto.id, "deadbeef1234");
+        assert_eq!(dto.name, "web"); // leading slash stripped
+        assert_eq!(dto.image, "nginx:1.27"); // Config.Image, not the digest
+        assert_eq!(dto.state, "running");
+        assert_eq!(dto.command.as_deref(), Some("nginx -g daemon off;"));
+        assert_eq!(dto.restart_policy.as_deref(), Some("unless-stopped"));
+        assert_eq!(dto.restart_count, 2);
+        assert_eq!(dto.working_dir.as_deref(), Some("/srv"));
+        assert_eq!(dto.started_at.as_deref(), Some("2026-06-10T08:00:00Z"));
+        // Docker's zero time means "never finished" → null.
+        assert_eq!(dto.finished_at, None);
+        assert_eq!(dto.env, vec!["PATH=/usr/bin".to_string()]);
+        assert_eq!(dto.labels.get("com.example.app").unwrap(), "web");
+    }
+
+    #[test]
+    fn details_dto_maps_ports_mounts_networks() {
+        let dto = ContainerDetailsDto::from(inspect_fixture());
+
+        // 80/tcp keeps both host bindings; 9090/tcp survives as exposed-only.
+        assert_eq!(dto.ports.len(), 3);
+        assert_eq!(dto.ports[0].container_port, 80);
+        assert_eq!(dto.ports[0].host_ip.as_deref(), Some("0.0.0.0"));
+        assert_eq!(dto.ports[0].host_port, Some(8080));
+        assert_eq!(dto.ports[1].host_ip.as_deref(), Some("::"));
+        assert_eq!(dto.ports[2].container_port, 9090);
+        assert_eq!(dto.ports[2].host_port, None);
+
+        assert_eq!(dto.mounts.len(), 1);
+        let m = &dto.mounts[0];
+        assert_eq!(m.typ.as_deref(), Some("bind"));
+        assert_eq!(m.source.as_deref(), Some("/srv/data"));
+        assert_eq!(m.destination.as_deref(), Some("/data"));
+        assert_eq!(m.rw, Some(true));
+
+        assert_eq!(dto.networks.len(), 1);
+        let n = &dto.networks[0];
+        assert_eq!(n.name, "bridge");
+        assert_eq!(n.ip_address.as_deref(), Some("172.17.0.2"));
+        assert_eq!(n.gateway.as_deref(), Some("172.17.0.1"));
+    }
+
+    #[test]
+    fn details_dto_handles_empty_inspect() {
+        let dto = ContainerDetailsDto::from(ContainerInspectResponse {
+            id: Some("cafebabe000011112222".into()),
+            ..Default::default()
+        });
+
+        assert_eq!(dto.name, "cafebabe0000"); // falls back to the short id
+        assert_eq!(dto.state, "unknown");
+        assert_eq!(dto.command, None);
+        assert_eq!(dto.restart_policy, None);
+        assert!(dto.ports.is_empty());
+        assert!(dto.mounts.is_empty());
+        assert!(dto.networks.is_empty());
+    }
 }
