@@ -2,15 +2,63 @@ import { act, render, screen, fireEvent } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DockerContainers from './DockerContainers'
 import * as client from '../api/client'
-import type { DockerContainer, DockerListResponse } from '../api/types'
+import type {
+  DockerContainer,
+  DockerContainerDetails,
+  DockerListResponse,
+} from '../api/types'
 
 vi.mock('../api/client', () => ({
   getContainers: vi.fn(),
   containerAction: vi.fn(),
+  getContainerDetails: vi.fn(),
 }))
 
 const getContainers = vi.mocked(client.getContainers)
 const containerAction = vi.mocked(client.containerAction)
+const getContainerDetails = vi.mocked(client.getContainerDetails)
+
+const details = (
+  over: Partial<DockerContainerDetails> = {},
+): DockerContainerDetails => ({
+  id: 'abc123',
+  name: 'web',
+  image: 'nginx:alpine',
+  state: 'running',
+  exit_code: null,
+  created: '2026-06-01T10:00:00Z',
+  started_at: '2026-06-10T08:00:00Z',
+  finished_at: null,
+  restart_policy: 'unless-stopped',
+  restart_count: 0,
+  platform: 'linux',
+  command: 'nginx -g daemon off;',
+  working_dir: null,
+  env: [],
+  labels: {},
+  ports: [
+    { container_port: 80, protocol: 'tcp', host_ip: '0.0.0.0', host_port: 8080 },
+  ],
+  mounts: [
+    {
+      type: 'bind',
+      name: null,
+      source: '/srv/data',
+      destination: '/data',
+      mode: 'rw',
+      rw: true,
+    },
+  ],
+  networks: [
+    {
+      name: 'bridge',
+      ip_address: '172.17.0.2',
+      gateway: '172.17.0.1',
+      mac_address: null,
+    },
+  ],
+  ...over,
+})
 
 const container = (over: Partial<DockerContainer> = {}): DockerContainer => ({
   id: 'abc123',
@@ -34,6 +82,7 @@ beforeEach(() => {
   Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })
   getContainers.mockResolvedValue(listOf([container()]))
   containerAction.mockResolvedValue(undefined)
+  getContainerDetails.mockResolvedValue(details())
 })
 
 afterEach(() => {
@@ -93,6 +142,55 @@ describe('DockerContainers', () => {
     await flush()
 
     expect(screen.getByRole('alert')).toHaveTextContent('Docker daemon unavailable: no socket')
+  })
+
+  it('expands a row into details with ports, mounts and networks', async () => {
+    render(<DockerContainers />)
+    await flush()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Details of web' }))
+    await flush()
+
+    expect(getContainerDetails).toHaveBeenCalledWith('abc123')
+    // Ports
+    expect(screen.getByText('80/tcp')).toBeInTheDocument()
+    expect(screen.getByText('0.0.0.0:8080')).toBeInTheDocument()
+    // Mounts
+    expect(screen.getByText('/srv/data')).toBeInTheDocument()
+    expect(screen.getByText('/data')).toBeInTheDocument()
+    // Networks
+    expect(screen.getByText('bridge')).toBeInTheDocument()
+    expect(screen.getByText('172.17.0.2')).toBeInTheDocument()
+    // Overview
+    expect(screen.getByText('nginx -g daemon off;')).toBeInTheDocument()
+    expect(screen.getByText('unless-stopped')).toBeInTheDocument()
+  })
+
+  it('collapses the details row on a second click', async () => {
+    render(<DockerContainers />)
+    await flush()
+
+    const toggle = screen.getByRole('button', { name: 'Details of web' })
+    fireEvent.click(toggle)
+    await flush()
+    expect(screen.getByText('80/tcp')).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    await flush()
+    expect(screen.queryByText('80/tcp')).not.toBeInTheDocument()
+  })
+
+  it('shows an error inside the details row when inspect fails', async () => {
+    getContainerDetails.mockRejectedValue(new Error('no such container'))
+    render(<DockerContainers />)
+    await flush()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Details of web' }))
+    await flush()
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Failed to load details: no such container',
+    )
   })
 
   it('shows an action error without crashing when the action rejects', async () => {

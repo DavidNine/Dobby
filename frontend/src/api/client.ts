@@ -4,6 +4,7 @@
 import type {
   ContainerAction,
   CurrentResponse,
+  DockerContainerDetails,
   DockerListResponse,
   HistoryResponse,
   Range,
@@ -74,6 +75,20 @@ export async function getHistory(range: Range): Promise<HistoryResponse> {
 export async function getContainers(): Promise<DockerListResponse> {
   const res = await request('/api/docker/containers');
   return (await res.json()) as DockerListResponse;
+}
+
+/**
+ * GET /api/docker/containers/{id} — detailed info for one container
+ * (port bindings, mounts, networks, command, restart policy, …).
+ * - non-2xx (e.g. 404 unknown id, 5xx daemon error) → throws.
+ */
+export async function getContainerDetails(
+  id: string,
+): Promise<DockerContainerDetails> {
+  const res = await request(
+    `/api/docker/containers/${encodeURIComponent(id)}`,
+  );
+  return (await res.json()) as DockerContainerDetails;
 }
 
 /**
