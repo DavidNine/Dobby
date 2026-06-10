@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-export type ThemeId = 'dark' | 'muji' | 'cyberpunk' | 'glass'
+export type ThemeId = 'dark' | 'muji' | 'cyberpunk' | 'dobby-cat' | 'glass'
 
 export interface ThemeMeta {
   id: ThemeId
@@ -41,6 +41,13 @@ export const THEMES: ThemeMeta[] = [
     description: 'Pure black with neon green / pink highlights.',
     preview: '#000000',
     accent: '#00ff9f',
+  },
+  {
+    id: 'dobby-cat',
+    label: 'Dobby Cat',
+    description: "Dobby's own coat: tabby charcoal with pink paw-pad accents.",
+    preview: '#2a2421',
+    accent: '#ffb7b2',
   },
   {
     id: 'glass',

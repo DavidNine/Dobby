@@ -53,6 +53,20 @@
     --color-border: rgb(0 255 102 / 25%); /* faint green glow edge */
   }
 
+  /* Dobby Cat — inspired by a Dobby cat's coat: deep stripe charcoal, dark
+     tabby brown cards, oatmeal-beige fur text and a soft pink paw-pad accent.
+     --color-accent-contrast is overridden so text on the pink active nav item
+     shifts to the bg color (#1E1B18) for optimal contrast. */
+  [data-theme='dobby-cat'] {
+    --color-bg: #1e1b18; /* deep stripe charcoal black */
+    --color-card: #2a2421; /* dark tabby brown */
+    --color-text-main: #e6d5c3; /* oatmeal beige / light fur */
+    --color-text-muted: #a89a8d; /* warm muted fur gray */
+    --color-accent: #ffb7b2; /* soft pink paw pad */
+    --color-accent-contrast: #1e1b18;
+    --color-border: #3d3530; /* subtle dark brown */
+  }
+
   /* 毛玻璃風 (Glassmorphism) — gradient backdrop, ultra-translucent cards. */
   [data-theme='glass'] {
     --color-bg: linear-gradient(135deg, #0f172a, #1e1b4b);

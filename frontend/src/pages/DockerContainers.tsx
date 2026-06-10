@@ -133,7 +133,7 @@ function ContainersBody({
                       type="button"
                       disabled={pendingId === c.id}
                       onClick={() => onAction(c, action)}
-                      className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-main transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-md border border-main px-2.5 py-1 text-xs font-medium text-main transition-opacity hover:opacity-75 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {pendingId === c.id ? '…' : ACTION_LABEL[action]}
                     </button>

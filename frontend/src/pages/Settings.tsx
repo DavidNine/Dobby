@@ -34,7 +34,7 @@ export default function Settings({ theme, onChange }: SettingsProps) {
           <div
             role="radiogroup"
             aria-label="Theme"
-            className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4"
+            className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5"
           >
             {THEMES.map((t) => {
               const selected = t.id === theme
